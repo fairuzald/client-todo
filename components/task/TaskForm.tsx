@@ -7,10 +7,9 @@ import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import {
   CalendarIcon,
-  CheckIcon,
-  ChevronDownIcon,
+  CheckSquare,
   Loader2,
-  Tag as TagIcon,
+  TagIcon,
   Trash2,
   X,
 } from "lucide-react";
@@ -18,16 +17,9 @@ import React, { useEffect, useState } from "react";
 import PriorityIndicator from "../PriorityIndicator";
 import StatusBadge from "../StatusBadge";
 import TagBadge from "../tag/TagBadge";
-import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Calendar } from "../ui/calendar";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-} from "../ui/command";
+import { Card, CardContent } from "../ui/card";
 import {
   Dialog,
   DialogContent,
@@ -37,6 +29,7 @@ import {
 } from "../ui/dialog";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
+import { ScrollArea } from "../ui/scroll-area";
 import {
   Select,
   SelectContent,
@@ -80,7 +73,7 @@ const TaskForm: React.FC<TaskFormProps> = ({
   const [formData, setFormData] = useState<Task>(defaultTask);
   const [date, setDate] = useState<Date | undefined>(undefined);
   const [showCalendar, setShowCalendar] = useState(false);
-  const [tagSelectorOpen, setTagSelectorOpen] = useState(false);
+  const [showTagSelector, setShowTagSelector] = useState(false);
 
   // Fetch tags if not provided as props
   const { data: tagsData, isLoading: isTagsLoading } = useQuery({
@@ -95,18 +88,22 @@ const TaskForm: React.FC<TaskFormProps> = ({
   useEffect(() => {
     if (open) {
       if (task) {
+        // Use the existing task with proper defaults for optional fields
         setFormData({
           ...task,
           description: task.description || "",
           tags: task.tags || [],
         });
+
+        // Set date if available
         setDate(task.due_date ? new Date(task.due_date) : undefined);
       } else {
         setFormData(defaultTask);
         setDate(undefined);
       }
+      // Reset UI states
       setShowCalendar(false);
-      setTagSelectorOpen(false);
+      setShowTagSelector(false);
     }
   }, [open, task]);
 
@@ -153,6 +150,7 @@ const TaskForm: React.FC<TaskFormProps> = ({
   const toggleTag = (tag: Tag) => {
     setFormData((prev) => {
       const isSelected = prev.tags?.some((t) => t.id === tag.id);
+
       return {
         ...prev,
         tags: isSelected
@@ -162,20 +160,16 @@ const TaskForm: React.FC<TaskFormProps> = ({
     });
   };
 
-  const removeTag = (tagId: number) => {
-    setFormData((prev) => ({
-      ...prev,
-      tags: (prev.tags || []).filter((t) => t.id !== tagId),
-    }));
-  };
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Ensure the task has all required fields before submitting
     const taskToSubmit: Task = {
       ...formData,
       description: formData.description || null,
       tags: formData.tags || [],
     };
+
     onSave(taskToSubmit);
   };
 
@@ -184,7 +178,7 @@ const TaskForm: React.FC<TaskFormProps> = ({
       open={open}
       onOpenChange={(isOpen) => !isSubmitting && !isOpen && onClose()}
     >
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[500px] max-h-[900px] overflow-auto">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle className="flex justify-between items-center">
@@ -206,7 +200,6 @@ const TaskForm: React.FC<TaskFormProps> = ({
           </DialogHeader>
 
           <div className="grid gap-4 py-4">
-            {/* Title Field */}
             <div className="grid gap-2">
               <Label htmlFor="title">Task Title</Label>
               <Input
@@ -221,7 +214,6 @@ const TaskForm: React.FC<TaskFormProps> = ({
               />
             </div>
 
-            {/* Description Field */}
             <div className="grid gap-2">
               <Label htmlFor="description">Description</Label>
               <Textarea
@@ -235,7 +227,6 @@ const TaskForm: React.FC<TaskFormProps> = ({
               />
             </div>
 
-            {/* Status and Priority in Grid */}
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label>Status</Label>
@@ -286,18 +277,15 @@ const TaskForm: React.FC<TaskFormProps> = ({
               </div>
             </div>
 
-            {/* Due Date Field */}
+            {/* Date Selection */}
             <div className="grid gap-2">
               <Label>Due Date</Label>
               <div className="relative">
                 <Button
                   type="button"
-                  variant={date ? "default" : "outline"}
+                  variant="outline"
                   className={cn(
-                    "w-full justify-start text-left font-normal",
-                    date
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-background",
+                    "w-full justify-start text-left font-normal bg-background",
                     !date && "text-muted-foreground"
                   )}
                   disabled={isSubmitting}
@@ -305,127 +293,117 @@ const TaskForm: React.FC<TaskFormProps> = ({
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
                   {date ? format(date, "PPP") : "Select a date"}
-                  {date && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="ml-auto h-4 w-4 text-primary-foreground hover:bg-primary-foreground/20 hover:text-primary-foreground"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        clearDate();
-                      }}
-                    >
-                      <X className="h-3 w-3" />
-                    </Button>
-                  )}
                 </Button>
+
+                {date && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-0 top-0 h-full px-3 text-muted-foreground hover:text-foreground"
+                    onClick={clearDate}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
               </div>
 
               {showCalendar && (
-                <div className="rounded-md border mt-1 p-1 shadow-sm">
-                  <Calendar
-                    mode="single"
-                    selected={date}
-                    onSelect={handleDateSelect}
-                    disabled={isSubmitting}
-                    className="rounded-md border-0"
-                    initialFocus
-                  />
-                </div>
+                <Card className="mt-1">
+                  <CardContent className="p-1">
+                    <Calendar
+                      mode="single"
+                      selected={date}
+                      onSelect={handleDateSelect}
+                      disabled={isSubmitting}
+                      className="rounded-md border"
+                    />
+                  </CardContent>
+                </Card>
               )}
             </div>
 
-            {/* Tags Field with Command Menu */}
+            {/* Tag Selection */}
             <div className="grid gap-2">
               <Label>Tags</Label>
-              <div className="relative">
-                <div className="relative">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full justify-between text-left font-normal bg-background"
-                    disabled={isSubmitting || isTagsLoading}
-                    onClick={() => setTagSelectorOpen(!tagSelectorOpen)}
-                  >
-                    <div className="flex items-center">
-                      {isTagsLoading ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
-                        <TagIcon className="mr-2 h-4 w-4" />
-                      )}
-                      {isTagsLoading
-                        ? "Loading tags..."
-                        : formData.tags && formData.tags.length > 0
-                        ? `${formData.tags.length} tags selected`
-                        : "Select tags"}
-                    </div>
-                    <ChevronDownIcon className="h-4 w-4 opacity-50" />
-                  </Button>
-                </div>
+              <div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full justify-start text-left font-normal bg-background"
+                  disabled={isSubmitting || isTagsLoading}
+                  onClick={() => setShowTagSelector(!showTagSelector)}
+                >
+                  {isTagsLoading ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <TagIcon className="mr-2 h-4 w-4" />
+                  )}
+                  {isTagsLoading
+                    ? "Loading tags..."
+                    : formData.tags && formData.tags.length > 0
+                    ? `${formData.tags.length} tags selected`
+                    : "Select tags"}
+                </Button>
 
-                {tagSelectorOpen && (
-                  <div className="absolute z-10 w-full mt-1 rounded-md border bg-popover text-popover-foreground shadow-md outline-none animate-in">
-                    <Command className="w-full">
-                      <CommandInput placeholder="Search tags..." />
-                      <CommandEmpty>No tags found.</CommandEmpty>
-                      <CommandGroup className="max-h-[200px] overflow-auto">
-                        {availableTags.map((tag) => {
-                          const isSelected = formData.tags?.some(
-                            (t) => t.id === tag.id
-                          );
-                          return (
-                            <CommandItem
-                              key={tag.id}
-                              onSelect={() => toggleTag(tag)}
-                              className="flex items-center gap-2 cursor-pointer"
-                            >
+                {showTagSelector && (
+                  <Card className="mt-1">
+                    <CardContent className="p-1">
+                      <ScrollArea className="h-48 w-full">
+                        <div className="grid gap-1.5 p-1">
+                          {isTagsLoading ? (
+                            <div className="flex justify-center p-2">
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              <span className="ml-2 text-sm">
+                                Loading tags...
+                              </span>
+                            </div>
+                          ) : availableTags.length > 0 ? (
+                            availableTags.map((tag) => (
                               <div
-                                className={cn(
-                                  "flex h-4 w-4 items-center justify-center rounded-sm border",
-                                  isSelected
-                                    ? "bg-primary border-primary"
-                                    : "opacity-50"
-                                )}
+                                key={tag.id}
+                                className="flex items-center space-x-2 p-2 rounded hover:bg-secondary cursor-pointer"
+                                onClick={() => toggleTag(tag)}
                               >
-                                {isSelected && (
-                                  <CheckIcon className="h-3 w-3 text-primary-foreground" />
-                                )}
+                                <CheckSquare
+                                  className={cn(
+                                    "h-4 w-4",
+                                    formData.tags?.some((t) => t.id === tag.id)
+                                      ? "text-primary"
+                                      : "text-muted-foreground"
+                                  )}
+                                />
+                                <TagBadge tag={tag} />
                               </div>
-                              <TagBadge tag={tag} />
-                            </CommandItem>
-                          );
-                        })}
-                      </CommandGroup>
-                    </Command>
-                  </div>
+                            ))
+                          ) : (
+                            <div className="p-2 text-center">
+                              <p className="text-muted-foreground text-sm">
+                                No tags available
+                              </p>
+                              <p className="text-xs mt-1">
+                                Create tags in the Tags section.
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </ScrollArea>
+                    </CardContent>
+                  </Card>
                 )}
               </div>
 
               {formData.tags && formData.tags.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 mt-1.5">
                   {formData.tags.map((tag) => (
-                    <Badge
-                      key={tag.id}
-                      style={{
-                        backgroundColor: tag.color,
-                        color: getTextColor(tag.color),
-                      }}
-                      className="flex items-center gap-1 px-2 py-1 text-xs"
-                    >
-                      {tag.name}
-                      <X
-                        className="h-3 w-3 cursor-pointer"
-                        onClick={() => removeTag(tag.id)}
-                      />
-                    </Badge>
+                    <TagBadge key={tag.id} tag={tag} />
                   ))}
                 </div>
               )}
             </div>
           </div>
 
-          <DialogFooter className="gap-2 sm:gap-0">
+          <DialogFooter className="gap-2">
             <Button
               type="button"
               variant="outline"
@@ -452,22 +430,5 @@ const TaskForm: React.FC<TaskFormProps> = ({
     </Dialog>
   );
 };
-
-// Helper function to determine appropriate text color based on background color
-function getTextColor(bgColor: string): string {
-  // Remove # if present
-  const hex = bgColor.charAt(0) === "#" ? bgColor.substring(1, 7) : bgColor;
-
-  // Convert hex to RGB
-  const r = parseInt(hex.substring(0, 2), 16);
-  const g = parseInt(hex.substring(2, 4), 16);
-  const b = parseInt(hex.substring(4, 6), 16);
-
-  // Calculate luminance - perceived brightness
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-
-  // Return white for dark colors, black for light colors
-  return luminance > 0.5 ? "#000000" : "#ffffff";
-}
 
 export default TaskForm;
